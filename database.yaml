@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: pg-db
+  namespace: backend
+spec:
+  serviceName: pg-hl
+  selector:
+    matchLabels:
+      app: pg
+  template:
+    metadata:
+      labels:
+        app: pg
+    spec:
+      terminationGracePeriodSeconds: 30
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999               # postgres UID in official image
+        fsGroup: 999
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: postgres
+          image: postgres:16
+          envFrom:
+            - secretRef: { name: pg-secret }
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/pgdata
+          ports:
+            - { name: pg, containerPort: 5432 }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 10
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 60
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 10Gi
+        volumeMode: Filesystem
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-hl
+  namespace: backend
+spec:
+  clusterIP: None
+  selector: { app: pg }
+  ports:
+    - name: pg
+      port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: allow-app-to-pg, namespace: backend }
+spec:
+  podSelector: { matchLabels: { app: pg } }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { domain: lab } }
+      ports:
+        - protocol: TCP
+          port: 5432
