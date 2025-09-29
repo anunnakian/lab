@@ -12,6 +12,8 @@ WORKDIR /app
 
 COPY --from=build /workspace/target/*.jar app.jar
 
+RUN mkdir -p /app/tmp && chmod 1777 /app/tmp
+
 # Extract Spring Boot layers to separate layers
 RUN java -Djarmode=layertools -jar app.jar extract
 
@@ -26,11 +28,10 @@ COPY --from=prep /app/spring-boot-loader/ ./
 COPY --from=prep /app/snapshot-dependencies/ ./
 COPY --from=prep /app/application/ ./
 
-# Environment & JVM tuning
-ENV JAVA_TOOL_OPTIONS="-XX:+UseG1GC -XX:MaxRAMPercentage=75"
+COPY --from=prep --chown=65532:65532 /app/tmp /app/tmp
 
-# Expose the port your app listens on
+ENV JAVA_TOOL_OPTIONS="-Djava.io.tmpdir=/app/tmp -XX:+UseG1GC -XX:MaxRAMPercentage=75"
+
 EXPOSE 8080
 
-# Spring Boot 3 launcher classpath layout
 ENTRYPOINT ["java", "org.springframework.boot.loader.launch.JarLauncher"]
