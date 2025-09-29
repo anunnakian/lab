@@ -144,3 +144,24 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+
+env:
+  - name: SPRING_PROFILES_ACTIVE
+    value: "prod"
+  - name: DB_HOST
+    value: "pg-db-0.pg-hl.backend.svc"
+  - name: DB_NAME
+    valueFrom:
+      secretKeyRef:
+        name: pg-secret
+        key: POSTGRES_DB
+  - name: DB_USER
+    valueFrom:
+      secretKeyRef:
+        name: pg-secret
+        key: POSTGRES_USER
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: pg-secret
+        key: POSTGRES_PASSWORD
